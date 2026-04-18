@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+apps/desktop/main.js
+apps/desktop/preload.js
+apps/desktop/main.mjs
+apps/desktop/test-main.js
+apps/desktop/debug-electron.js
+apps/desktop/debug2.js
+apps/desktop/check-process.js
+apps/desktop/check2.js
+apps/desktop/check-binding.js
+apps/desktop/check-globals.js
+test-electron/

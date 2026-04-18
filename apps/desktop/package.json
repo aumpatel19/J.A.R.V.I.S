@@ -1,0 +1,29 @@
+{
+  "name": "@jarvis/desktop",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev:renderer": "npm run dev --workspace=apps/renderer",
+    "build": "npm run build --workspace=apps/renderer && electron-builder"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^35.2.0",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^8.0.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "@types/node": "^22.14.1"
+  },
+  "build": {
+    "appId": "com.jarvis.ai",
+    "productName": "JARVIS",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "../renderer/dist/**/*"],
+    "win": { "target": "nsis" }
+  }
+}

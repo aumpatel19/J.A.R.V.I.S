@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-jarvis-bg: #000000;
+  --color-jarvis-primary: #00f0ff;
+  --color-jarvis-accent: #0077ff;
+  --color-jarvis-dim: #003f4f;
+  --color-jarvis-panel: rgba(0, 15, 30, 0.85);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #000;
+  color: #00f0ff;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  -webkit-app-region: drag;
+  user-select: none;
+  overflow: hidden;
+}
+
+button, input {
+  -webkit-app-region: no-drag;
+}
+
+.glow {
+  box-shadow: 0 0 8px #00f0ff, 0 0 20px #00f0ff44;
+}
+
+.glow-text {
+  text-shadow: 0 0 6px #00f0ff, 0 0 12px #00f0ff66;
+}
+
+.panel {
+  background: rgba(0, 15, 30, 0.85);
+  border: 1px solid #00f0ff33;
+  backdrop-filter: blur(12px);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #00f0ff44; border-radius: 2px; }
+
+@keyframes rotate-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes rotate-reverse { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.rotate-slow { animation: rotate-slow 12s linear infinite; }
+.rotate-medium { animation: rotate-slow 7s linear infinite; }
+.rotate-reverse { animation: rotate-reverse 9s linear infinite; }
+.pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }

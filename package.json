@@ -1,0 +1,20 @@
+{
+  "name": "jarvis",
+  "version": "1.0.0",
+  "private": true,
+  "main": "apps/desktop/main.js",
+  "workspaces": [
+    "apps/desktop",
+    "apps/renderer",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=apps/desktop\"",
+    "build": "npm run build --workspace=server && npm run build --workspace=apps/renderer && npm run build --workspace=apps/desktop"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^32.3.3"
+  }
+}
