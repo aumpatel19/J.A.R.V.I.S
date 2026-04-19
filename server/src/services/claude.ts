@@ -4,15 +4,11 @@ import { JarvisResponse } from '../../../shared/types';
 import { JARVIS_SYSTEM_PROMPT } from '../prompts/jarvis';
 
 const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY!,
-  defaultHeaders: {
-    'HTTP-Referer': 'https://github.com/aumpatel19/J.A.R.V.I.S',
-    'X-Title': 'J.A.R.V.I.S',
-  },
+  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: process.env.GROQ_API_KEY!,
 });
 
-const MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const MODEL = 'llama-3.3-70b-versatile';
 
 const ActionSchema = z.object({
   type: z.enum(['open_website', 'search', 'open_app', 'remember', 'recall']),
