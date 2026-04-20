@@ -20,6 +20,39 @@ const DEV = process.env.NODE_ENV !== 'production';
 const RENDERER_URL = 'http://localhost:5173';
 
 let serverProcess: ChildProcess | null = null;
+let wakeProcess: ChildProcess | null = null;
+
+const WAKE_PS = `
+Add-Type -AssemblyName System.Speech
+$eng = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+$gb = New-Object System.Speech.Recognition.GrammarBuilder
+$choices = New-Object System.Speech.Recognition.Choices
+$choices.Add(@("jarvis","hey jarvis","ok jarvis"))
+$gb.Append($choices)
+$g = New-Object System.Speech.Recognition.Grammar($gb)
+$eng.LoadGrammar($g)
+$eng.SetInputToDefaultAudioDevice()
+while ($true) {
+  $r = $eng.Recognize([TimeSpan]::FromSeconds(10))
+  if ($r) { Write-Output "WAKE"; [Console]::Out.Flush() }
+}
+`;
+
+function startWakeWord(win: BrowserWindow): void {
+  wakeProcess = spawn('powershell', [
+    '-NonInteractive', '-NoProfile', '-Command', WAKE_PS,
+  ], { stdio: ['ignore', 'pipe', 'ignore'] });
+
+  wakeProcess.stdout?.on('data', (d: Buffer) => {
+    if (d.toString().includes('WAKE')) {
+      win.webContents.send('wake-word');
+    }
+  });
+
+  wakeProcess.on('exit', () => {
+    setTimeout(() => { if (win && !win.isDestroyed()) startWakeWord(win); }, 1000);
+  });
+}
 
 function startServer(): Promise<void> {
   if (DEV) return Promise.resolve();
@@ -89,7 +122,8 @@ app.whenReady().then(async () => {
   });
 
   await startServer();
-  createWindow();
+  const win = createWindow();
+  startWakeWord(win);
 });
 
 app.on('window-all-closed', () => {
@@ -98,6 +132,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   serverProcess?.kill();
+  wakeProcess?.kill();
 });
 
 app.on('activate', () => {

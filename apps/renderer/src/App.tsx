@@ -6,7 +6,6 @@ import { LogsPanel } from './components/LogsPanel';
 import { TasksPanel } from './components/TasksPanel';
 import { CommandInput } from './components/CommandInput';
 import { useSession } from './store/session';
-import { useWakeWord } from './hooks/useWakeWord';
 import { useSpeechToText } from './hooks/useSpeechToText';
 import { useTextToSpeech } from './hooks/useTextToSpeech';
 import { sendChat } from './lib/api';
@@ -15,6 +14,7 @@ import { Action } from '../../../shared/types';
 type ElectronAPI = {
   openExternal: (url: string) => Promise<void>;
   openApp: (exe: string) => Promise<void>;
+  onWakeWord: (cb: () => void) => void;
 };
 
 declare global {
@@ -125,13 +125,17 @@ export default function App() {
     }
   }, [status, startListening, startSTT, stopSTT, setStatus]);
 
-  useWakeWord({
-    enabled: micReady && status === 'idle',
-    onWake: () => {
-      startListening();
-      startSTT();
-    },
-  });
+  // Wake word via Electron main process (Windows System.Speech — always-on, no browser restrictions)
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  useEffect(() => {
+    window.electronAPI?.onWakeWord(() => {
+      if (statusRef.current === 'idle') {
+        startListening();
+        startSTT();
+      }
+    });
+  }, [startListening, startSTT]);
 
   return (
     <div className="flex flex-col h-screen bg-black text-[#00f0ff] select-none overflow-hidden">
