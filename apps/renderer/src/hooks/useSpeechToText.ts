@@ -3,6 +3,7 @@ import { useCallback, useRef } from 'react';
 interface UseSpeechToTextOptions {
   onResult: (transcript: string) => void;
   onEnd?: () => void;
+  onError?: (msg: string) => void;
 }
 
 async function sarvamSTT(blob: Blob): Promise<string> {
@@ -14,16 +15,21 @@ async function sarvamSTT(blob: Blob): Promise<string> {
   return data.transcript;
 }
 
-export function useSpeechToText({ onResult, onEnd }: UseSpeechToTextOptions) {
+export function useSpeechToText({ onResult, onEnd, onError }: UseSpeechToTextOptions) {
   const mediaRecRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackRecRef = useRef<SpeechRecognition | null>(null);
 
   const stopSilenceDetection = useCallback(() => {
     if (silenceTimerRef.current) {
       clearInterval(silenceTimerRef.current);
       silenceTimerRef.current = null;
+    }
+    if (maxTimerRef.current) {
+      clearTimeout(maxTimerRef.current);
+      maxTimerRef.current = null;
     }
   }, []);
 
@@ -53,14 +59,20 @@ export function useSpeechToText({ onResult, onEnd }: UseSpeechToTextOptions) {
         try {
           const transcript = await sarvamSTT(blob);
           if (transcript.trim()) onResult(transcript.trim());
-          else onEnd?.();
-        } catch {
+          else { onError?.('No speech detected'); onEnd?.(); }
+        } catch (err) {
+          onError?.(`STT failed: ${(err as Error).message}`);
           onEnd?.();
         }
       };
 
       mr.start(100);
       mediaRecRef.current = mr;
+
+      // Hard cap: stop recording after 15s regardless
+      maxTimerRef.current = setTimeout(() => {
+        if (mr.state === 'recording') mr.stop();
+      }, 15000);
 
       // Silence detection: stop after 1.5s of silence (once voice was detected)
       silenceTimerRef.current = setInterval(() => {

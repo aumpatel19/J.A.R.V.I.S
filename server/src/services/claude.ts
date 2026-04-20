@@ -5,6 +5,11 @@ import { getNews } from '../tools/news';
 import { getWeather } from '../tools/weather';
 import { searchWeb } from '../tools/search';
 import { setMemoryKey, getMemoryKey } from './memory';
+import {
+  setVolume, muteVolume, changeVolume, getVolume,
+  setBrightness, mediaControl, takeScreenshot,
+  systemPower, getSystemInfo, launchApp, typeText, keyboardShortcut,
+} from '../tools/system';
 
 const client = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
@@ -113,6 +118,128 @@ const TOOLS: OpenAI.Tool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'control_volume',
+      description: 'Control system audio volume. Set exact level, mute, or adjust up/down.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['set', 'mute', 'up', 'down', 'get'], description: 'Volume action' },
+          level: { type: 'number', description: 'Volume level 0-100 (required for set action)' },
+          steps: { type: 'number', description: 'Steps to change volume (for up/down, default 5)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_brightness',
+      description: 'Set screen brightness level.',
+      parameters: {
+        type: 'object',
+        properties: {
+          level: { type: 'number', description: 'Brightness 0-100' },
+        },
+        required: ['level'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'media_control',
+      description: 'Control media playback — play/pause, next track, previous track, stop.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['play_pause', 'next', 'prev', 'stop'], description: 'Media action' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'take_screenshot',
+      description: 'Take a screenshot of the screen and save it to the Desktop.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'system_power',
+      description: 'Control system power state.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['shutdown', 'restart', 'sleep', 'lock', 'hibernate'], description: 'Power action' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_system_info',
+      description: 'Get system hardware and resource information — CPU usage, RAM, disk, battery.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['cpu', 'ram', 'disk', 'battery', 'all'], description: 'Info type' },
+        },
+        required: ['type'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'launch_app',
+      description: 'Launch any application on the computer by name (notepad, chrome, spotify, discord, excel, etc.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'App name (notepad, calculator, explorer, chrome, firefox, edge, spotify, discord, vscode, terminal, word, excel, powerpoint, steam, camera, settings, paint, snipping, taskmgr, cmd)' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'type_text',
+      description: 'Type text at the current cursor position on screen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Text to type' },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'keyboard_shortcut',
+      description: 'Send a keyboard shortcut like ctrl+c, alt+f4, win+d, ctrl+shift+esc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          keys: { type: 'string', description: 'Shortcut in format: ctrl+c, alt+f4, win+d, ctrl+z, etc.' },
+        },
+        required: ['keys'],
+      },
+    },
+  },
 ];
 
 export interface ChatMessage {
@@ -152,6 +279,31 @@ async function runTool(
           : `No memory found for "${args.key}".`,
       };
     }
+    case 'control_volume': {
+      const a = args.action;
+      if (a === 'set') return { result: setVolume(Number(args.level)) };
+      if (a === 'mute') return { result: muteVolume() };
+      if (a === 'up') return { result: changeVolume('up', Number(args.steps) || 5) };
+      if (a === 'down') return { result: changeVolume('down', Number(args.steps) || 5) };
+      if (a === 'get') return { result: getVolume() };
+      return { result: 'Unknown volume action.' };
+    }
+    case 'set_brightness':
+      return { result: setBrightness(Number(args.level)) };
+    case 'media_control':
+      return { result: mediaControl(args.action) };
+    case 'take_screenshot':
+      return { result: takeScreenshot() };
+    case 'system_power':
+      return { result: systemPower(args.action) };
+    case 'get_system_info':
+      return { result: getSystemInfo(args.type) };
+    case 'launch_app':
+      return { result: launchApp(args.name) };
+    case 'type_text':
+      return { result: typeText(args.text) };
+    case 'keyboard_shortcut':
+      return { result: keyboardShortcut(args.keys) };
     default:
       return { result: 'Unknown tool called.' };
   }

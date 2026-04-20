@@ -94,6 +94,9 @@ export default function App() {
     onEnd: () => {
       if (status === 'listening') setStatus('idle');
     },
+    onError: (msg) => {
+      addLog({ type: 'error', text: msg });
+    },
   });
 
   const handleMicClick = useCallback(() => {

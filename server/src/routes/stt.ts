@@ -17,7 +17,7 @@ router.post('/', upload.single('audio'), async (req: Request, res: Response) => 
   try {
     const formData = new FormData();
     formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), 'audio.webm');
-    formData.append('model', 'saarika:v2');
+    formData.append('model', 'saarika:v2.5');
     formData.append('language_code', 'en-IN');
 
     const response = await fetch('https://api.sarvam.ai/speech-to-text', {

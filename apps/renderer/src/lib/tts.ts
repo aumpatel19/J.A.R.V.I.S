@@ -45,6 +45,7 @@ async function speakServer(text: string, onEnd?: () => void): Promise<void> {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
   const audioCtx = new AudioContext();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
   const buffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
@@ -54,7 +55,11 @@ async function speakServer(text: string, onEnd?: () => void): Promise<void> {
 }
 
 export function speak(text: string, onEnd?: () => void): void {
-  speakServer(text, onEnd).catch(() => speakBrowser(text, onEnd));
+  // Safety timeout: if TTS hangs, unblock the app after 20s
+  let done = false;
+  const guard = setTimeout(() => { if (!done) { done = true; onEnd?.(); } }, 20000);
+  const finish = () => { if (!done) { done = true; clearTimeout(guard); onEnd?.(); } };
+  speakServer(text, finish).catch(() => speakBrowser(text, finish));
 }
 
 export function stopSpeaking(): void {
