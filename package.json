@@ -10,11 +10,41 @@
     "shared"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=apps/desktop\"",
-    "build": "npm run build --workspace=server && npm run build --workspace=apps/renderer && npm run build --workspace=apps/desktop"
+    "dev:server": "npm run dev --workspace=server",
+    "dev:renderer": "npm run dev --workspace=@jarvis/renderer",
+    "build:renderer": "npm run build --workspace=@jarvis/renderer",
+    "build:server": "esbuild server/src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=build/server.cjs --external:fsevents",
+    "build:main": "cd apps/desktop && npx tsc",
+    "build:copy-env": "node -e \"require('fs').copyFileSync('server/.env','build/config.env')\"",
+    "build": "npm run build:renderer && npm run build:server && npm run build:main && npm run build:copy-env",
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.jarvis.desktop",
+    "productName": "JARVIS",
+    "copyright": "Copyright © 2026",
+    "directories": {
+      "output": "dist-app",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "apps/desktop/main.js",
+      "apps/desktop/preload.js",
+      "apps/renderer/dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "build/server.cjs", "to": "server.cjs" },
+      { "from": "build/config.env", "to": "config.env" }
+    ],
+    "win": {
+      "target": [{ "target": "dir", "arch": ["x64"] }]
+    }
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "electron": "^32.3.3"
+    "electron": "^32.3.3",
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.28.0"
   }
 }

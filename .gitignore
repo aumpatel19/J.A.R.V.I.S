@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-app/
+build/
 .env
 apps/desktop/main.js
 apps/desktop/preload.js
