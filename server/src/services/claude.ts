@@ -18,6 +18,7 @@ const client = new OpenAI({
 });
 
 const MODEL = 'llama-3.3-70b-versatile';
+const FALLBACK_MODEL = 'llama-3.1-8b-instant';
 
 const TOOLS: OpenAI.Tool[] = [
   {
@@ -340,16 +341,16 @@ export async function askJarvis(
         tool_choice: 'auto',
       });
     } catch (err: unknown) {
-      // Groq sometimes fails to generate valid tool calls — retry without tools
       const msg = (err as Error).message ?? '';
-      if (msg.includes('tool') || msg.includes('function') || msg.includes('400')) {
-        completion = await client.chat.completions.create({
-          model: MODEL,
-          messages,
-        });
-      } else {
-        throw err;
-      }
+      // On rate limit, retry with smaller/higher-quota model
+      const model = msg.includes('429') ? FALLBACK_MODEL : MODEL;
+      // On bad tool call, retry without tools
+      const useTools = !msg.includes('tool') && !msg.includes('function') && !msg.includes('400');
+      completion = await client.chat.completions.create({
+        model,
+        messages,
+        ...(useTools ? { tools: TOOLS, tool_choice: 'auto' as const } : {}),
+      });
     }
 
     const choice = completion.choices[0];
