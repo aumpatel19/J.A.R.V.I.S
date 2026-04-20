@@ -1,16 +1,17 @@
-import { sarvamTTS } from './api';
+// Always use server-side Edge TTS (en-GB-RyanNeural). Falls back to browser TTS if server is down.
 
 let preferredVoice: SpeechSynthesisVoice | null = null;
-let useSarvam = false;
-
-export function setSarvamTTS(enabled: boolean) {
-  useSarvam = enabled;
-}
 
 function pickVoice(): SpeechSynthesisVoice | null {
   if (preferredVoice) return preferredVoice;
   const voices = speechSynthesis.getVoices();
-  const preferred = ['Microsoft David', 'Google UK English Male', 'Daniel'];
+  const preferred = [
+    'Microsoft Ryan Online (Natural)',
+    'Microsoft Guy Online (Natural)',
+    'Microsoft David',
+    'Google UK English Male',
+    'Daniel',
+  ];
   for (const name of preferred) {
     const v = voices.find((v) => v.name.includes(name));
     if (v) { preferredVoice = v; return v; }
@@ -21,8 +22,8 @@ function pickVoice(): SpeechSynthesisVoice | null {
 function speakBrowser(text: string, onEnd?: () => void): void {
   speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
-  utt.rate = 0.95;
-  utt.pitch = 0.9;
+  utt.rate = 0.92;
+  utt.pitch = 0.85;
   utt.volume = 1;
   const voice = pickVoice();
   if (voice) utt.voice = voice;
@@ -30,34 +31,30 @@ function speakBrowser(text: string, onEnd?: () => void): void {
   speechSynthesis.speak(utt);
 }
 
-async function speakSarvam(text: string, onEnd?: () => void): Promise<void> {
-  try {
-    const base64Audio = await sarvamTTS(text);
-    const binary = atob(base64Audio);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+async function speakServer(text: string, onEnd?: () => void): Promise<void> {
+  const res = await fetch('http://localhost:4000/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error('Server TTS failed');
+  const { audio } = (await res.json()) as { audio: string };
 
-    const audioCtx = new AudioContext();
-    const buffer = await audioCtx.decodeAudioData(bytes.buffer);
-    const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioCtx.destination);
-    source.onended = () => {
-      audioCtx.close();
-      onEnd?.();
-    };
-    source.start();
-  } catch {
-    speakBrowser(text, onEnd);
-  }
+  const binary = atob(audio);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+  const audioCtx = new AudioContext();
+  const buffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  source.onended = () => { audioCtx.close(); onEnd?.(); };
+  source.start();
 }
 
 export function speak(text: string, onEnd?: () => void): void {
-  if (useSarvam) {
-    speakSarvam(text, onEnd);
-  } else {
-    speakBrowser(text, onEnd);
-  }
+  speakServer(text, onEnd).catch(() => speakBrowser(text, onEnd));
 }
 
 export function stopSpeaking(): void {

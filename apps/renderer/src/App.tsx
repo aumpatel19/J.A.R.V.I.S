@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { HUD } from './components/HUD';
 import { StatusBar } from './components/StatusBar';
@@ -9,8 +9,7 @@ import { useSession } from './store/session';
 import { useWakeWord } from './hooks/useWakeWord';
 import { useSpeechToText } from './hooks/useSpeechToText';
 import { useTextToSpeech } from './hooks/useTextToSpeech';
-import { sendChat, checkCapabilities } from './lib/api';
-import { setSarvamTTS } from './lib/tts';
+import { sendChat } from './lib/api';
 import { Action } from '../../../shared/types';
 
 type ElectronAPI = {
@@ -27,14 +26,6 @@ declare global {
 export default function App() {
   const { status, logs, tasks, micLevel, setStatus, addLog, addTask, updateTask, setLastResponse, setMicLevel } = useSession();
   const { say } = useTextToSpeech();
-  const [sarvamEnabled, setSarvamEnabled] = useState(false);
-
-  useEffect(() => {
-    checkCapabilities().then(({ sarvam }) => {
-      setSarvamEnabled(sarvam);
-      setSarvamTTS(sarvam);
-    });
-  }, []);
 
   const processCommand = useCallback(async (text: string) => {
     setStatus('thinking');
@@ -96,7 +87,6 @@ export default function App() {
   }, [status, setStatus, addLog]);
 
   const { start: startSTT, stop: stopSTT } = useSpeechToText({
-    useSarvam: sarvamEnabled,
     onResult: (transcript) => {
       stopSTT();
       processCommand(transcript);

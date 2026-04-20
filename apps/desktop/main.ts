@@ -1,6 +1,20 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
+
+function parseEnvFile(filePath: string): Record<string, string> {
+  if (!fs.existsSync(filePath)) return {};
+  const vars: Record<string, string> = {};
+  for (const line of fs.readFileSync(filePath, 'utf8').split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const eq = t.indexOf('=');
+    if (eq < 0) continue;
+    vars[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
+  }
+  return vars;
+}
 
 const DEV = process.env.NODE_ENV !== 'production';
 const RENDERER_URL = 'http://localhost:5173';
@@ -13,12 +27,13 @@ function startServer(): Promise<void> {
   const serverPath = path.join(process.resourcesPath, 'server.cjs');
   const envPath = path.join(process.resourcesPath, 'config.env');
 
+  const envVars = parseEnvFile(envPath);
   serverProcess = spawn(process.execPath, [serverPath], {
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
-      JARVIS_ENV_PATH: envPath,
       PORT: '4000',
+      ...envVars,
     },
     detached: false,
     stdio: 'ignore',
@@ -64,6 +79,15 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
+  // Grant microphone and media permissions to the renderer
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    const allowed = ['media', 'microphone', 'audioCapture', 'speaker'];
+    callback(allowed.includes(permission));
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return ['media', 'microphone', 'audioCapture'].includes(permission);
+  });
+
   await startServer();
   createWindow();
 });

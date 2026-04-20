@@ -1,7 +1,4 @@
-import dotenv from 'dotenv';
-import path from 'path';
-dotenv.config({ path: process.env.JARVIS_ENV_PATH ?? path.resolve('.env') });
-
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { chatRouter } from './routes/chat';
