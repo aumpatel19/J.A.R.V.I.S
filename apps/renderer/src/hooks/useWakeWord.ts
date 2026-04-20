@@ -5,84 +5,100 @@ interface UseWakeWordOptions {
   enabled: boolean;
 }
 
+const CHUNK_MS = 2500;
+const RMS_THRESHOLD = 0.008;
+
 export function useWakeWord({ onWake, enabled }: UseWakeWordOptions) {
   const enabledRef = useRef(enabled);
   const onWakeRef = useRef(onWake);
-  const recRef = useRef<SpeechRecognition | null>(null);
-  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const waking = useRef(false);
-
   enabledRef.current = enabled;
   onWakeRef.current = onWake;
 
   useEffect(() => {
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!SR) return;
+    if (!enabled) return;
 
-    function build(): SpeechRecognition {
-      const rec = new SR!();
-      rec.lang = 'en-US';
-      rec.interimResults = true;
-      rec.continuous = true;
-      rec.maxAlternatives = 3;
+    let stopped = false;
+    let stream: MediaStream | null = null;
+    let recorder: MediaRecorder | null = null;
+    let loopTimer: ReturnType<typeof setTimeout> | null = null;
 
-      rec.onresult = (e: SpeechRecognitionEvent) => {
-        if (waking.current) return;
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          for (let j = 0; j < e.results[i].length; j++) {
-            const t = e.results[i][j].transcript.toLowerCase().trim();
-            if (t.includes('jarvis') || t.includes('travis') || t.includes('javis')) {
-              waking.current = true;
-              rec.stop();
-              onWakeRef.current();
-              // Reset waking flag after STT takes over
-              setTimeout(() => { waking.current = false; }, 3000);
-              return;
+    async function init() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        return;
+      }
+
+      const audioCtx = new AudioContext();
+      const analyser = audioCtx.createAnalyser();
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const dataArray = new Float32Array(analyser.frequencyBinCount);
+
+      function getMaxRms(): number {
+        analyser.getFloatTimeDomainData(dataArray);
+        return Math.sqrt(dataArray.reduce((s, v) => s + v * v, 0) / dataArray.length);
+      }
+
+      function nextChunk() {
+        if (stopped || !enabledRef.current) return;
+
+        const chunks: Blob[] = [];
+        let maxRms = 0;
+
+        recorder = new MediaRecorder(stream!);
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+          const rms = getMaxRms();
+          if (rms > maxRms) maxRms = rms;
+        };
+
+        recorder.onstop = async () => {
+          if (stopped || !enabledRef.current) return;
+
+          // Only call STT if there was voice activity in this chunk
+          if (maxRms > RMS_THRESHOLD && chunks.length > 0) {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            if (blob.size > 500) {
+              try {
+                const form = new FormData();
+                form.append('audio', blob, 'audio.webm');
+                const res = await fetch('http://localhost:4000/stt', { method: 'POST', body: form });
+                if (res.ok) {
+                  const { transcript } = (await res.json()) as { transcript: string };
+                  if (transcript?.toLowerCase().includes('jarvis')) {
+                    if (enabledRef.current && !stopped) {
+                      onWakeRef.current();
+                      return; // stop loop — STT will take over
+                    }
+                  }
+                }
+              } catch { /* network/STT error — just continue */ }
             }
           }
-        }
-      };
 
-      rec.onerror = () => scheduleRestart();
-      rec.onend = () => scheduleRestart();
+          // Schedule next chunk
+          if (!stopped && enabledRef.current) {
+            loopTimer = setTimeout(nextChunk, 100);
+          }
+        };
 
-      return rec;
-    }
-
-    function scheduleRestart() {
-      if (restartTimer.current) clearTimeout(restartTimer.current);
-      if (!enabledRef.current) return;
-      restartTimer.current = setTimeout(() => {
-        if (!enabledRef.current) return;
-        try {
-          const rec = build();
-          recRef.current = rec;
-          rec.start();
-        } catch { scheduleRestart(); }
-      }, 300);
-    }
-
-    function start() {
-      try {
-        const rec = build();
-        recRef.current = rec;
-        rec.start();
-        console.log('[JARVIS] Wake word listener active');
-      } catch (e) {
-        console.warn('[JARVIS] Wake word start failed:', e);
-        scheduleRestart();
+        recorder.start(200); // collect data every 200ms for RMS sampling
+        setTimeout(() => {
+          if (recorder?.state === 'recording') recorder.stop();
+        }, CHUNK_MS);
       }
+
+      nextChunk();
     }
 
-    function stop() {
-      if (restartTimer.current) { clearTimeout(restartTimer.current); restartTimer.current = null; }
-      try { recRef.current?.stop(); } catch {}
-      recRef.current = null;
-    }
+    init();
 
-    if (enabled) start();
-    else stop();
-
-    return stop;
+    return () => {
+      stopped = true;
+      if (loopTimer) clearTimeout(loopTimer);
+      try { recorder?.stop(); } catch {}
+      stream?.getTracks().forEach((t) => t.stop());
+    };
   }, [enabled]);
 }

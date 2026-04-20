@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useWakeWord } from './hooks/useWakeWord';
 import { motion } from 'framer-motion';
 import { HUD } from './components/HUD';
 import { StatusBar } from './components/StatusBar';
@@ -28,16 +29,10 @@ export default function App() {
   const { say } = useTextToSpeech();
 
   const [micReady, setMicReady] = useState(false);
-  const micReadyRef = useRef(false);
 
-  // Request mic permission on mount, then start wake word once confirmed
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => {
-        stream.getTracks().forEach(t => t.stop());
-        micReadyRef.current = true;
-        setMicReady(true);
-      })
+      .then(stream => { stream.getTracks().forEach(t => t.stop()); setMicReady(true); })
       .catch(() => {});
   }, []);
 
@@ -125,17 +120,16 @@ export default function App() {
     }
   }, [status, startListening, startSTT, stopSTT, setStatus]);
 
-  // Wake word via Electron main process (Windows System.Speech — always-on, no browser restrictions)
   const statusRef = useRef(status);
   statusRef.current = status;
-  useEffect(() => {
-    window.electronAPI?.onWakeWord(() => {
-      if (statusRef.current === 'idle') {
-        startListening();
-        startSTT();
-      }
-    });
-  }, [startListening, startSTT]);
+
+  useWakeWord({
+    enabled: micReady && status === 'idle',
+    onWake: () => {
+      startListening();
+      startSTT();
+    },
+  });
 
   return (
     <div className="flex flex-col h-screen bg-black text-[#00f0ff] select-none overflow-hidden">
