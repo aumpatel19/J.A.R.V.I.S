@@ -67,7 +67,11 @@ export function useWakeWord({ onWake, enabled }: UseWakeWordOptions) {
         const rec = build();
         recRef.current = rec;
         rec.start();
-      } catch { scheduleRestart(); }
+        console.log('[JARVIS] Wake word listener active');
+      } catch (e) {
+        console.warn('[JARVIS] Wake word start failed:', e);
+        scheduleRestart();
+      }
     }
 
     function stop() {

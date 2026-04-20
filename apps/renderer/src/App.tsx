@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { HUD } from './components/HUD';
 import { StatusBar } from './components/StatusBar';
@@ -27,10 +27,17 @@ export default function App() {
   const { status, logs, tasks, micLevel, setStatus, addLog, addTask, updateTask, setLastResponse, setMicLevel } = useSession();
   const { say } = useTextToSpeech();
 
-  // Pre-request mic permission on startup so wake word works without clicking mic first
+  const [micReady, setMicReady] = useState(false);
+  const micReadyRef = useRef(false);
+
+  // Request mic permission on mount, then start wake word once confirmed
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => stream.getTracks().forEach(t => t.stop()))
+      .then(stream => {
+        stream.getTracks().forEach(t => t.stop());
+        micReadyRef.current = true;
+        setMicReady(true);
+      })
       .catch(() => {});
   }, []);
 
@@ -119,7 +126,7 @@ export default function App() {
   }, [status, startListening, startSTT, stopSTT, setStatus]);
 
   useWakeWord({
-    enabled: status === 'idle',
+    enabled: micReady && status === 'idle',
     onWake: () => {
       startListening();
       startSTT();
