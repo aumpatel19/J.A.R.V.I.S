@@ -1,4 +1,4 @@
-import { spawnSync } from 'child_process';
+import { spawnSync, spawn } from 'child_process';
 import os from 'os';
 import path from 'path';
 
@@ -223,47 +223,48 @@ else { "No battery detected" }
 
 const WORLD_MONITOR_EXE = 'C:/Users/Aum/OneDrive/Desktop/World Monitor/world-monitor.exe';
 
-const MOVE_SCRIPT = String.raw`
+export function openWorldMonitorOnSecondScreen(): string {
+  // Build a self-contained script that launches the app, waits for it to fully
+  // settle (3s after window appears), then moves + fills the secondary screen.
+  const exe = WORLD_MONITOR_EXE.replace(/\//g, '\\');
+  const script = `
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
-public class WinMove {
-  [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int h2,bool r);
+public class WM {
+  [DllImport("user32.dll")] public static extern IntPtr SetWindowPos(IntPtr h,IntPtr i,int x,int y,int w,int ht,uint f);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int c);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 }
 "@
-$screens = [System.Windows.Forms.Screen]::AllScreens
-$sec = ($screens | Where-Object { -not $_.Primary } | Select-Object -First 1)
-if (-not $sec) { $sec = $screens[0] }
-$x = $sec.Bounds.X; $y = $sec.Bounds.Y; $w = $sec.Bounds.Width; $h = $sec.Bounds.Height
+Start-Process "${exe}"
 $proc = $null
-for ($i = 0; $i -lt 40; $i++) {
+for ($i=0;$i -lt 60;$i++) {
   Start-Sleep -Milliseconds 500
-  $proc = Get-Process 'world-monitor' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  $proc = Get-Process 'world-monitor' -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne 0} | Select-Object -First 1
   if ($proc) { break }
 }
-if ($proc) {
-  [WinMove]::ShowWindow($proc.MainWindowHandle, 9) | Out-Null
-  Start-Sleep -Milliseconds 300
-  [WinMove]::MoveWindow($proc.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null
-  Start-Sleep -Milliseconds 200
-  [WinMove]::ShowWindow($proc.MainWindowHandle, 3) | Out-Null
-  [WinMove]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
-  Write-Output "MOVED"
-}
+if (-not $proc) { exit }
+Start-Sleep -Seconds 3
+$screens = [System.Windows.Forms.Screen]::AllScreens
+$sec = ($screens | Where-Object {-not $_.Primary} | Select-Object -First 1)
+if (-not $sec) { $sec = [System.Windows.Forms.Screen]::PrimaryScreen }
+$x=$sec.Bounds.X; $y=$sec.Bounds.Y; $w=$sec.Bounds.Width; $h=$sec.Bounds.Height
+[WM]::ShowWindow($proc.MainWindowHandle,9) | Out-Null
+Start-Sleep -Milliseconds 400
+[WM]::SetWindowPos($proc.MainWindowHandle,[IntPtr]::Zero,$x,$y,$w,$h,0x0040) | Out-Null
+Start-Sleep -Milliseconds 400
+[WM]::ShowWindow($proc.MainWindowHandle,3) | Out-Null
+[WM]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
 `;
 
-export function openWorldMonitorOnSecondScreen(): string {
-  // Step 1: launch the exe
-  spawnSync('powershell', ['-Command', `Start-Process "${WORLD_MONITOR_EXE}"`]);
-  // Step 2: wait for window then move to secondary screen
-  spawnSync('powershell', ['-NonInteractive', '-NoProfile', '-Command', '-'], {
-    input: MOVE_SCRIPT,
-    encoding: 'utf8',
-    timeout: 25000,
-  });
+  // Run in background so JARVIS responds immediately while window moves
+  const bg = spawn('powershell', [
+    '-NonInteractive', '-NoProfile', '-WindowStyle', 'Hidden', '-Command', script,
+  ], { detached: true, stdio: 'ignore' });
+  bg.unref();
+
   return 'World Monitor is now open on your external screen, sir.';
 }
 
