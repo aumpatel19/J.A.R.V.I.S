@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { HUD } from './components/HUD';
 import { StatusBar } from './components/StatusBar';
@@ -27,7 +27,16 @@ export default function App() {
   const { status, logs, tasks, micLevel, setStatus, addLog, addTask, updateTask, setLastResponse, setMicLevel } = useSession();
   const { say } = useTextToSpeech();
 
-  const processCommand = useCallback(async (text: string) => {
+  // Pre-request mic permission on startup so wake word works without clicking mic first
+  useEffect(() => {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => stream.getTracks().forEach(t => t.stop()))
+      .catch(() => {});
+  }, []);
+
+  const processCommand = useCallback(async (rawText: string) => {
+    // Strip wake word prefix so "Jarvis, open YouTube" → "open YouTube"
+    const text = rawText.replace(/^(hey\s+)?jarvis[,.]?\s*/i, '').trim() || rawText;
     setStatus('thinking');
     addLog({ type: 'user', text });
 
