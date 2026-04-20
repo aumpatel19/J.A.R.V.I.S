@@ -219,6 +219,41 @@ else { "No battery detected" }
   }
 }
 
+// ---------- World Monitor on Secondary Screen ----------
+
+export function openWorldMonitorOnSecondScreen(): string {
+  const EXE = 'C:\\Users\\Aum\\OneDrive\\Desktop\\World Monitor\\world-monitor.exe';
+  ps(`
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class WinMove {
+  [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int h2,bool r);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int c);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+}
+'@
+$screens = [System.Windows.Forms.Screen]::AllScreens
+$sec = $screens | Where-Object { -not $_.Primary } | Select-Object -First 1
+if (-not $sec) { $sec = $screens[0] }
+$x = $sec.Bounds.X; $y = $sec.Bounds.Y; $w = $sec.Bounds.Width; $h = $sec.Bounds.Height
+Start-Process '${EXE.replace(/\\/g, '\\\\')}'
+$proc = $null
+for ($i = 0; $i -lt 40; $i++) {
+  Start-Sleep -Milliseconds 500
+  $proc = Get-Process 'world-monitor' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  if ($proc) { break }
+}
+if ($proc) {
+  [WinMove]::MoveWindow($proc.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null
+  [WinMove]::ShowWindow($proc.MainWindowHandle, 3) | Out-Null
+  [WinMove]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+}
+`);
+  return 'World Monitor is now open on your external screen, sir.';
+}
+
 // ---------- App Launch ----------
 
 export function launchApp(name: string): string {

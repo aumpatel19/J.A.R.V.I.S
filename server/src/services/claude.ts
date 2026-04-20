@@ -9,6 +9,7 @@ import {
   setVolume, muteVolume, changeVolume, getVolume,
   setBrightness, mediaControl, takeScreenshot,
   systemPower, getSystemInfo, launchApp, typeText, keyboardShortcut,
+  openWorldMonitorOnSecondScreen,
 } from '../tools/system';
 
 const client = new OpenAI({
@@ -301,8 +302,13 @@ async function runTool(
       return { result: systemPower(args.action) };
     case 'get_system_info':
       return { result: getSystemInfo(args.type) };
-    case 'launch_app':
+    case 'launch_app': {
+      const n = args.name?.toLowerCase();
+      if (n === 'world monitor' || n === 'worldmonitor') {
+        return { result: openWorldMonitorOnSecondScreen() };
+      }
       return { result: launchApp(args.name) };
+    }
     case 'type_text':
       return { result: typeText(args.text) };
     case 'keyboard_shortcut':
