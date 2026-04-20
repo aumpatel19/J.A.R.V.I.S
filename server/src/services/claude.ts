@@ -258,14 +258,17 @@ async function runTool(
       return { result: await getWeather(args.city) };
     case 'search_web':
       return { result: await searchWeb(args.query) };
-    case 'open_website':
+    case 'open_website': {
+      const { spawnSync } = await import('child_process');
+      spawnSync('powershell', ['-Command', `Start-Process '${args.url.replace(/'/g, "''")}'`]);
       return {
-        result: `Opening ${args.title ?? args.url}...`,
+        result: `Opened ${args.title ?? args.url}. Done.`,
         action: { type: 'open_website', url: args.url },
       };
+    }
     case 'open_app':
       return {
-        result: `Launching ${args.name}...`,
+        result: launchApp(args.name),
         action: { type: 'open_app', app: args.name },
       };
     case 'remember':
@@ -369,6 +372,9 @@ export async function askJarvis(
     );
 
     messages.push(...toolResults);
+
+    // Stop looping after side-effect actions — no need to re-query the model
+    if (uiActions.length > 0) break;
   }
 
   return {
