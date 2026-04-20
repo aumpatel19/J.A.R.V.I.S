@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { getBestMicDeviceId } from '../lib/microphone';
 
 interface UseWakeWordOptions {
   onWake: () => void;
@@ -24,7 +25,10 @@ export function useWakeWord({ onWake, enabled }: UseWakeWordOptions) {
 
     async function init() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const deviceId = await getBestMicDeviceId();
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+        });
       } catch {
         return;
       }

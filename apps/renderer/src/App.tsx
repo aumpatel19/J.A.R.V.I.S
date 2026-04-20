@@ -31,9 +31,15 @@ export default function App() {
   const [micReady, setMicReady] = useState(false);
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => { stream.getTracks().forEach(t => t.stop()); setMicReady(true); })
-      .catch(() => {});
+    // Re-detect mic on device change (e.g. monitor plugged in)
+    const detect = () => {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => { stream.getTracks().forEach(t => t.stop()); setMicReady(true); })
+        .catch(() => {});
+    };
+    detect();
+    navigator.mediaDevices.addEventListener('devicechange', detect);
+    return () => navigator.mediaDevices.removeEventListener('devicechange', detect);
   }, []);
 
   const processCommand = useCallback(async (rawText: string) => {

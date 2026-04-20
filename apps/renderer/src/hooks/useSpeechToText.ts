@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { getBestMicDeviceId } from '../lib/microphone';
 
 interface UseSpeechToTextOptions {
   onResult: (transcript: string) => void;
@@ -36,7 +37,10 @@ export function useSpeechToText({ onResult, onEnd, onError }: UseSpeechToTextOpt
   const start = useCallback(async () => {
     // Try Sarvam (MediaRecorder) first
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const deviceId = await getBestMicDeviceId();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+      });
       chunksRef.current = [];
 
       const audioCtx = new AudioContext();
