@@ -221,11 +221,11 @@ else { "No battery detected" }
 
 // ---------- World Monitor on Secondary Screen ----------
 
-export function openWorldMonitorOnSecondScreen(): string {
-  const EXE = 'C:\\Users\\Aum\\OneDrive\\Desktop\\World Monitor\\world-monitor.exe';
-  ps(`
+const WORLD_MONITOR_EXE = 'C:/Users/Aum/OneDrive/Desktop/World Monitor/world-monitor.exe';
+
+const MOVE_SCRIPT = String.raw`
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type @'
+Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class WinMove {
@@ -233,12 +233,11 @@ public class WinMove {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int c);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 }
-'@
+"@
 $screens = [System.Windows.Forms.Screen]::AllScreens
-$sec = $screens | Where-Object { -not $_.Primary } | Select-Object -First 1
+$sec = ($screens | Where-Object { -not $_.Primary } | Select-Object -First 1)
 if (-not $sec) { $sec = $screens[0] }
 $x = $sec.Bounds.X; $y = $sec.Bounds.Y; $w = $sec.Bounds.Width; $h = $sec.Bounds.Height
-Start-Process '${EXE.replace(/\\/g, '\\\\')}'
 $proc = $null
 for ($i = 0; $i -lt 40; $i++) {
   Start-Sleep -Milliseconds 500
@@ -246,11 +245,25 @@ for ($i = 0; $i -lt 40; $i++) {
   if ($proc) { break }
 }
 if ($proc) {
+  [WinMove]::ShowWindow($proc.MainWindowHandle, 9) | Out-Null
+  Start-Sleep -Milliseconds 300
   [WinMove]::MoveWindow($proc.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null
+  Start-Sleep -Milliseconds 200
   [WinMove]::ShowWindow($proc.MainWindowHandle, 3) | Out-Null
   [WinMove]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+  Write-Output "MOVED"
 }
-`);
+`;
+
+export function openWorldMonitorOnSecondScreen(): string {
+  // Step 1: launch the exe
+  spawnSync('powershell', ['-Command', `Start-Process "${WORLD_MONITOR_EXE}"`]);
+  // Step 2: wait for window then move to secondary screen
+  spawnSync('powershell', ['-NonInteractive', '-NoProfile', '-Command', '-'], {
+    input: MOVE_SCRIPT,
+    encoding: 'utf8',
+    timeout: 25000,
+  });
   return 'World Monitor is now open on your external screen, sir.';
 }
 
