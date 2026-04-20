@@ -8,7 +8,7 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const { text, language = 'en-IN', speaker = 'meera' } = req.body as {
+  const { text, language = 'en-IN', speaker = 'karun' } = req.body as {
     text: string;
     language?: string;
     speaker?: string;
@@ -35,7 +35,7 @@ router.post('/', async (req: Request, res: Response) => {
         loudness: 1.5,
         speech_sample_rate: 22050,
         enable_preprocessing: true,
-        model: 'bulbul:v1',
+        model: 'bulbul:v2',
       }),
     });
 
