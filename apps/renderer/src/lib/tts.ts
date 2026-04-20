@@ -1,4 +1,11 @@
+import { sarvamTTS } from './api';
+
 let preferredVoice: SpeechSynthesisVoice | null = null;
+let useSarvam = false;
+
+export function setSarvamTTS(enabled: boolean) {
+  useSarvam = enabled;
+}
 
 function pickVoice(): SpeechSynthesisVoice | null {
   if (preferredVoice) return preferredVoice;
@@ -11,7 +18,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
   return voices[0] ?? null;
 }
 
-export function speak(text: string, onEnd?: () => void): void {
+function speakBrowser(text: string, onEnd?: () => void): void {
   speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.rate = 0.95;
@@ -21,6 +28,36 @@ export function speak(text: string, onEnd?: () => void): void {
   if (voice) utt.voice = voice;
   if (onEnd) utt.onend = onEnd;
   speechSynthesis.speak(utt);
+}
+
+async function speakSarvam(text: string, onEnd?: () => void): Promise<void> {
+  try {
+    const base64Audio = await sarvamTTS(text);
+    const binary = atob(base64Audio);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    const audioCtx = new AudioContext();
+    const buffer = await audioCtx.decodeAudioData(bytes.buffer);
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    source.onended = () => {
+      audioCtx.close();
+      onEnd?.();
+    };
+    source.start();
+  } catch {
+    speakBrowser(text, onEnd);
+  }
+}
+
+export function speak(text: string, onEnd?: () => void): void {
+  if (useSarvam) {
+    speakSarvam(text, onEnd);
+  } else {
+    speakBrowser(text, onEnd);
+  }
 }
 
 export function stopSpeaking(): void {

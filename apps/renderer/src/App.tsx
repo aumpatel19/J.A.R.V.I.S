@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { HUD } from './components/HUD';
 import { StatusBar } from './components/StatusBar';
@@ -9,7 +9,8 @@ import { useSession } from './store/session';
 import { useWakeWord } from './hooks/useWakeWord';
 import { useSpeechToText } from './hooks/useSpeechToText';
 import { useTextToSpeech } from './hooks/useTextToSpeech';
-import { sendChat } from './lib/api';
+import { sendChat, checkCapabilities } from './lib/api';
+import { setSarvamTTS } from './lib/tts';
 import { Action } from '../../../shared/types';
 
 type ElectronAPI = {
@@ -26,6 +27,14 @@ declare global {
 export default function App() {
   const { status, logs, tasks, micLevel, setStatus, addLog, addTask, updateTask, setLastResponse, setMicLevel } = useSession();
   const { say } = useTextToSpeech();
+  const [sarvamEnabled, setSarvamEnabled] = useState(false);
+
+  useEffect(() => {
+    checkCapabilities().then(({ sarvam }) => {
+      setSarvamEnabled(sarvam);
+      setSarvamTTS(sarvam);
+    });
+  }, []);
 
   const processCommand = useCallback(async (text: string) => {
     setStatus('thinking');
@@ -36,37 +45,38 @@ export default function App() {
       setLastResponse(res);
       addLog({ type: 'jarvis', text: res.response });
 
-      // Process action signals (open_external, open_app)
-      for (const ar of res.actionResults) {
-        if (ar.signal?.startsWith('open_external:')) {
-          const url = ar.signal.replace('open_external:', '');
-          await window.electronAPI?.openExternal(url);
-        } else if (ar.signal?.startsWith('open_app:')) {
-          const exe = ar.signal.replace('open_app:', '');
-          await window.electronAPI?.openApp(exe);
+      // Execute UI actions via Electron IPC
+      for (const action of res.actions) {
+        if (action.type === 'open_website' && action.url) {
+          const taskId = crypto.randomUUID();
+          addTask({ id: taskId, description: `Open ${action.url}`, status: 'running', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+          await window.electronAPI?.openExternal(action.url);
+          updateTask(taskId, { status: 'done' });
+        } else if (action.type === 'open_app' && action.app) {
+          const taskId = crypto.randomUUID();
+          addTask({ id: taskId, description: `Launch ${action.app}`, status: 'running', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+          await window.electronAPI?.openApp(action.app);
+          updateTask(taskId, { status: 'done' });
         }
       }
 
-      // Add tasks for each action
-      res.actions.forEach((action: Action) => {
-        const taskId = crypto.randomUUID();
-        const descriptions: Partial<Record<Action['type'], string>> = {
-          open_website: `Open ${action.url}`,
-          search: `Search: ${action.query}`,
-          open_app: `Launch ${action.app}`,
-          remember: `Remember ${action.key} = ${action.value}`,
-          recall: `Recall ${action.key}`,
-        };
-        addTask({
-          id: taskId,
-          description: descriptions[action.type] ?? action.type,
-          status: 'done',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+      // Log non-UI tool actions as tasks
+      const uiTypes = new Set<Action['type']>(['open_website', 'open_app']);
+      res.actions
+        .filter((a) => !uiTypes.has(a.type))
+        .forEach((action) => {
+          const descriptions: Partial<Record<Action['type'], string>> = {
+            remember: `Remembered: ${action.key}`,
+            recall: `Recalled: ${action.key}`,
+          };
+          addTask({
+            id: crypto.randomUUID(),
+            description: descriptions[action.type] ?? action.type,
+            status: 'done',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
         });
-        // Mark done after brief delay so user sees the running state
-        setTimeout(() => updateTask(taskId, { status: 'done' }), 500);
-      });
 
       setStatus('speaking');
       say(res.response, () => setStatus('idle'));
@@ -86,6 +96,7 @@ export default function App() {
   }, [status, setStatus, addLog]);
 
   const { start: startSTT, stop: stopSTT } = useSpeechToText({
+    useSarvam: sarvamEnabled,
     onResult: (transcript) => {
       stopSTT();
       processCommand(transcript);
@@ -105,7 +116,6 @@ export default function App() {
     }
   }, [status, startListening, startSTT, stopSTT, setStatus]);
 
-  // Wake word detection — always on when idle
   useWakeWord({
     enabled: status === 'idle',
     onWake: () => {
@@ -127,7 +137,6 @@ export default function App() {
       <StatusBar status={status} />
 
       <div className="flex flex-1 overflow-hidden gap-2 p-2">
-        {/* Left: Logs */}
         <motion.div
           className="w-72 shrink-0"
           initial={{ x: -40, opacity: 0 }}
@@ -137,7 +146,6 @@ export default function App() {
           <LogsPanel logs={logs} />
         </motion.div>
 
-        {/* Center: HUD */}
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <motion.div
             className="flex-1 flex items-center justify-center w-full"
@@ -149,7 +157,6 @@ export default function App() {
           </motion.div>
         </div>
 
-        {/* Right: Tasks */}
         <motion.div
           className="w-72 shrink-0"
           initial={{ x: 40, opacity: 0 }}
