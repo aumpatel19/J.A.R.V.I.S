@@ -322,12 +322,26 @@ export async function askJarvis(
   const uiActions: Action[] = [];
 
   for (let round = 0; round < 6; round++) {
-    const completion = await client.chat.completions.create({
-      model: MODEL,
-      messages,
-      tools: TOOLS,
-      tool_choice: 'auto',
-    });
+    let completion: OpenAI.ChatCompletion;
+    try {
+      completion = await client.chat.completions.create({
+        model: MODEL,
+        messages,
+        tools: TOOLS,
+        tool_choice: 'auto',
+      });
+    } catch (err: unknown) {
+      // Groq sometimes fails to generate valid tool calls — retry without tools
+      const msg = (err as Error).message ?? '';
+      if (msg.includes('tool') || msg.includes('function') || msg.includes('400')) {
+        completion = await client.chat.completions.create({
+          model: MODEL,
+          messages,
+        });
+      } else {
+        throw err;
+      }
+    }
 
     const choice = completion.choices[0];
     messages.push(choice.message as OpenAI.ChatCompletionMessageParam);
@@ -342,7 +356,8 @@ export async function askJarvis(
 
     const toolResults = await Promise.all(
       choice.message.tool_calls.map(async (tc) => {
-        const args = JSON.parse(tc.function.arguments || '{}') as Record<string, string>;
+        let args: Record<string, string> = {};
+        try { args = JSON.parse(tc.function.arguments || '{}'); } catch {}
         const { result, action } = await runTool(tc.function.name, args);
         if (action) uiActions.push(action);
         return {

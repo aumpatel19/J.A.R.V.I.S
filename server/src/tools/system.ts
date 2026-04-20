@@ -239,7 +239,6 @@ export function launchApp(name: string): string {
     steam: 'steam.exe',
     'world monitor': 'C:\\Users\\Aum\\OneDrive\\Desktop\\World Monitor\\world-monitor.exe',
     worldmonitor: 'C:\\Users\\Aum\\OneDrive\\Desktop\\World Monitor\\world-monitor.exe',
-    world: 'C:\\Users\\Aum\\OneDrive\\Desktop\\World Monitor\\world-monitor.exe',
     word: 'winword.exe',
     excel: 'excel.exe',
     powerpoint: 'powerpnt.exe',
